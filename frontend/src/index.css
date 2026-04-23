@@ -1,0 +1,62 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: radial-gradient(circle at top, #0b1220, #050816);
+  color: #e2e8f0;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Smooth feel */
+* {
+  transition: all 0.2s ease;
+}
+
+.font-heading {
+  font-family: "Space Grotesk", sans-serif;
+}
+
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spin-slower {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spin-reverse-slower {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 18s linear infinite;
+}
+
+.animate-spin-slower {
+  animation: spin-slower 30s linear infinite;
+}
+
+.animate-spin-reverse-slower {
+  animation: spin-reverse-slower 22s linear infinite;
+}
