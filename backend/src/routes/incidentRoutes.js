@@ -44,7 +44,7 @@ const upload = multer({
 // ===============================
 
 // ✅ Create incident (user)
-router.post("/", protectUser, createIncident);
+router.post("/", createIncident);
 
 // ✅ Get all incidents (no admin block for now)
 router.get("/", getAllIncidents);
