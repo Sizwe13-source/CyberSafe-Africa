@@ -38,12 +38,19 @@ app.use(express.urlencoded({ extended: true }));
 ================================ */
 const allowedOrigins = [
   "http://localhost:5173",
+  "http://127.0.0.1:5500", // 🔥 ADD THIS
   "https://cyber-safe-africa.vercel.app",
 ];
 
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );
