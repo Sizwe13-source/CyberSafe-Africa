@@ -357,7 +357,7 @@ function Dashboard() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   useEffect(() => {
-    const socket = io("http://localhost:5001");
+    const socket = io("https://cybersafe-africa.onrender.com");
 
     socket.on("new-threat", (newIncident) => {
       setIncidents((prev) => {
