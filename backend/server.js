@@ -13,6 +13,8 @@ import activityRoutes from "./src/routes/activityRoutes.js";
 import incidentRoutes from "./src/routes/incidentRoutes.js";
 import adminRoutes   from "./src/routes/adminRoutes.js";
 import aiRoutes      from "./src/routes/aiRoutes.js";
+import commentRoutes from "./src/routes/commentRoutes.js";
+
 
 const app = express();
 
@@ -118,6 +120,7 @@ app.use("/api/activity",  activityRoutes);
 app.use("/api/incidents", incidentRoutes);
 app.use("/api/admin",     adminRoutes);
 app.use("/api/ai",        aiRoutes);
+app.use("/api/comments", commentRoutes);
 
 /* ===============================
    ❓ 404 — unknown routes
