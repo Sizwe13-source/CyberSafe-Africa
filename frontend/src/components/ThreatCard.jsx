@@ -1,3 +1,4 @@
+//components/ThreatCard.jsx
 import { motion } from "framer-motion";
 
 function ThreatCard({ title, description, warning, accent = "cyan" }) {

@@ -1,3 +1,4 @@
+//components/SectionHeader.jsx
 import { motion } from "framer-motion";
 
 function SectionHeader({ title, subtitle, highlight }) {

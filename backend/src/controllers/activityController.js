@@ -1,54 +1,55 @@
+// controllers/activityController.js
 import { analyzeIncident } from "../utils/aiAnalysis.js";
 import Incident from "../models/Incident.js";
 import { validateActivityInput } from "../utils/validators.js";
 
 /* ===============================
    🔍 SMART RULE DETECTION
+   Requires 2+ signals to fire,
+   so single common words don't
+   trigger false positives.
 ================================ */
+const SIGNALS = {
+  Phishing: ["verify", "account", "login", "bank", "password", "credentials"],
+  Scam:     ["otp", "urgent", "send money", "lottery", "won", "claim", "reward"],
+  Malware:  ["download", ".apk", ".exe", "install now", "click here"],
+  Threat:   ["i will find you", "you will pay", "kill", "hurt", "attack"],
+  Bullying: ["stupid", "idiot", "loser", "nobody likes you", "kill yourself"],
+};
+
 const detectThreat = (text = "", url = "") => {
   const content = `${text} ${url}`.toLowerCase();
 
-  const phishingSignals = ["verify", "account", "login", "bank"];
-  const scamSignals = ["otp", "urgent", "send money", "lottery", "won"];
-  const malwareSignals = ["download", "apk", "file"];
-
-  const phishingMatches = phishingSignals.filter(word => content.includes(word)).length;
-  const scamMatches = scamSignals.filter(word => content.includes(word)).length;
-  const malwareMatches = malwareSignals.filter(word => content.includes(word)).length;
-
-  if (phishingMatches >= 2) return "Phishing";
-  if (scamMatches >= 2) return "Scam";
-  if (malwareMatches >= 2) return "Malware";
+  for (const [type, signals] of Object.entries(SIGNALS)) {
+    const hits = signals.filter((word) => content.includes(word)).length;
+    // Threat/Bullying only need 1 match — they're high-signal words
+    const threshold = ["Threat", "Bullying"].includes(type) ? 1 : 2;
+    if (hits >= threshold) return type;
+  }
 
   return null;
 };
 
 /* ===============================
-   🧠 NORMALIZE AI OUTPUT
+   🧠 NORMALIZE THREAT TYPE
+   Exact-match against known list
+   to avoid false partial matches.
 ================================ */
+const KNOWN_TYPES = ["Phishing", "Scam", "Malware", "Threat", "Bullying", "Safe", "Other"];
+
 const normalizeThreat = (type = "") => {
-  const t = type.toLowerCase();
-
-  if (t.includes("phish")) return "Phishing";
-  if (t.includes("scam")) return "Scam";
-  if (t.includes("malware")) return "Malware";
-
-  return "Other";
+  const t = type.trim().toLowerCase();
+  return KNOWN_TYPES.find((k) => k.toLowerCase() === t) || "Other";
 };
 
 /* ===============================
    🔢 SAFE CONFIDENCE PARSER
 ================================ */
 const parseConfidence = (value) => {
-  if (!value) return 50;
-
-  const v = value.toString().toLowerCase();
-
-  if (v.includes("high")) return 85;
-  if (v.includes("medium")) return 60;
-  if (v.includes("low")) return 30;
-
-  return parseInt(v.replace("%", "")) || 50;
+  if (value == null) return 50;
+  const n = Number(value);
+  if (!isNaN(n)) return Math.min(100, Math.max(0, n));  // clamp 0-100
+  return 50;
 };
 
 /* ===============================
@@ -56,11 +57,9 @@ const parseConfidence = (value) => {
 ================================ */
 export const analyzeActivity = async (req, res) => {
   try {
-    const { type, text = "", url } = req.body;
+    const { type, text = "", url = "" } = req.body;
 
-    // ✅ VALIDATION
     const validation = validateActivityInput({ type, text, url });
-
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
@@ -69,8 +68,7 @@ export const analyzeActivity = async (req, res) => {
       });
     }
 
-    const content = text || url;
-
+    const content = (text || url).trim();
     if (!content) {
       return res.status(400).json({
         success: false,
@@ -80,85 +78,60 @@ export const analyzeActivity = async (req, res) => {
 
     console.log("📩 Incoming activity:", content);
 
-    // 🔥 RULE DETECTION
+    // Step 1: fast rule check
     const ruleThreat = detectThreat(text, url);
 
-    // 🤖 AI ANALYSIS
-    const aiResult = await analyzeIncident(content);
+    // Step 2: AI analysis — returns parsed object, no JSON.parse needed
+    const parsed = await analyzeIncident(content);
 
-    let parsed;
+    const aiThreatType = normalizeThreat(parsed.threatType);
+    const confidence   = parseConfidence(parsed.confidence);
 
-    try {
-      // 🔥 CLEAN AI RESPONSE (REMOVE MARKDOWN)
-      const clean = aiResult
-        .replace(/```json/g, "")
-        .replace(/```/g, "")
-        .trim();
+    // Rule-based takes priority if it fired; otherwise trust the AI
+    const finalThreatType = ruleThreat || aiThreatType;
+    const isSafe = finalThreatType === "Safe" || confidence < 40;
 
-      parsed = JSON.parse(clean);
-
-    } catch {
-      parsed = {
-        threatType: "Other",
-        confidence: 50,
-        explanation: "AI parsing failed",
-        recommendation: "Stay cautious",
-      };
-    }
-
-    // 🔥 NORMALIZE + FINAL DECISION
-    const finalThreatType = ruleThreat || normalizeThreat(parsed.threatType);
-
-    const confidence = parseConfidence(parsed.confidence);
+    console.log("🧠 Detection:", { ruleThreat, aiThreat: aiThreatType, final: finalThreatType, confidence });
 
     const threat = {
-      type: finalThreatType,
-      message: `⚠️ ${finalThreatType} threat detected (${confidence}% confidence)`,
-      risk:
-        confidence > 70
-          ? "HIGH"
-          : confidence > 40
-          ? "MEDIUM"
-          : "LOW",
+      type:       finalThreatType,
       confidence,
-      reason: parsed.explanation || "AI analysis",
-      source: type,
+      risk:       confidence > 70 ? "HIGH" : confidence > 40 ? "MEDIUM" : "LOW",
+      reason:     parsed.explanation    || "AI analysis",
+      source:     type,
+      message:    isSafe
+        ? "✅ No threat detected"
+        : `⚠️ ${finalThreatType} detected (${confidence}% confidence)`,
     };
 
-    // 🔍 DEBUG LOG
-    console.log("🧠 Detection:", {
-      ruleThreat,
-      aiThreat: parsed.threatType,
-      final: finalThreatType,
-      confidence,
-    });
+    // Only save to DB if it's actually a threat — don't pollute the DB with safe activity
+    let newIncident = null;
+    if (!isSafe) {
+      newIncident = await Incident.create({
+        description: content,
+        threatType:  finalThreatType,
+        confidence,
+        reason:      threat.reason,
+        source:      type,
+        location:    req.body.location || "Unknown",
+        status:      "pending",
+      });
 
-    // 💾 SAVE INCIDENT
-    const newIncident = await Incident.create({
-      description: content,
-      threatType: threat.type,
-      confidence: threat.confidence,
-      reason: threat.reason,
-      source: type,
-      timestamp: new Date(),
-    });
+      // Only emit real threats to the dashboard
+      const io = req.app.get("io");
+      if (io) io.emit("new-threat", newIncident);
+    }
 
-    // 🔥 REAL-TIME EVENT
-    const io = req.app.get("io");
-    if (io) io.emit("new-threat", newIncident);
-
-    // ✅ RESPONSE
     return res.json({
-      success: true,
-      alert: true,
+      success:        true,
+      alert:          !isSafe,
       threat,
-      recommendation: parsed.recommendation || "Stay cautious",
-      data: newIncident,
+      recommendation: parsed.recommendation || (isSafe ? "Content looks safe." : "Stay cautious."),
+      data:           newIncident,
     });
 
   } catch (error) {
-    console.error("🔥 ERROR:", error.message);
-
+    console.error("🔥 analyzeActivity error:", error.message);
     return res.status(500).json({
       success: false,
       message: error.message,

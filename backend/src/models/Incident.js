@@ -1,59 +1,77 @@
+// src/models/Incident.js
 import mongoose from "mongoose";
 
 const incidentSchema = new mongoose.Schema(
   {
     name: {
-      type: String,
-      default: "System AI Detection"
+      type:    String,
+      default: "System AI Detection",
+      trim:    true,
     },
 
+    // Must match exactly what your controllers produce.
+    // Controllers: Phishing, Scam, Malware, Threat, Bullying, Safe, Other
     threatType: {
-      type: String,
+      type:     String,
       required: true,
-      enum: [
-        "Phishing",
-        "Scam",
-        "Malware",
-        "Data Breach",
-        "Fake Website",
-        "Identity Theft",
-        "Social Engineering",
-        "Ransomware",
-        "Other"
-      ]
+      enum:     ["Phishing", "Scam", "Malware", "Threat", "Bullying", "Safe", "Other"],
+      default:  "Other",
     },
 
     description: {
-      type: String,
+      type:     String,
       required: true,
-      trim: true
+      trim:     true,
+      maxlength: 2000,
     },
 
     confidence: {
-      type: Number,
-      default: 0
+      type:    Number,
+      default: 0,
+      min:     0,
+      max:     100,
     },
 
     status: {
-      type: String,
-      enum: ["pending", "reviewed", "resolved"],
-      default: "pending"
+      type:    String,
+      enum:    ["pending", "reviewed", "resolved", "safe"],
+      default: "pending",
     },
 
     location: {
-      type: String,
-      required: false
+      type:    String,
+      trim:    true,
+      default: "Unknown",
     },
 
     reason: {
-      type: String,
-      default: ""
-    }
+      type:    String,
+      trim:    true,
+      default: "",
+    },
+
+    // Which surface the activity came from (comment, url, email, etc.)
+    source: {
+      type:    String,
+      trim:    true,
+      default: "Unknown",
+    },
+
+    recommendation: {
+      type:    String,
+      trim:    true,
+      default: "",
+    },
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
+
+// Index the fields you filter/sort on most — speeds up dashboard queries
+incidentSchema.index({ createdAt: -1 });
+incidentSchema.index({ threatType: 1 });
+incidentSchema.index({ status: 1 });
 
 const Incident = mongoose.model("Incident", incidentSchema);
 

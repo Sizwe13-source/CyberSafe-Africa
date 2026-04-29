@@ -1,63 +1,66 @@
 // src/utils/generateAlerts.js
 
+const PRIORITY_ORDER = { critical: 3, warning: 2, low: 1 };
+
 export const generateAlerts = (incidents) => {
   if (!incidents || incidents.length === 0) return [];
 
-  // 🔥 GROUP BY threatType + location
+  // Group by threatType + location
   const grouped = {};
 
-  incidents.forEach((i) => {
-    const key = `${i.threatType}-${i.location || "Unknown"}`;
+  incidents.forEach((incident) => {
+    // Never surface "Safe" detections as alerts
+    if (incident.threatType === "Safe") return;
+
+    const confidence = Number(incident.confidence) || 0;
+
+    // Skip low-confidence noise
+    if (confidence < 50) return;
+
+    const key = `${incident.threatType}-${incident.location || "Unknown"}`;
 
     if (!grouped[key]) {
       grouped[key] = {
-        threatType: i.threatType,
-        location: i.location || "Unknown",
-        count: 0,
-        maxConfidence: 0
+        threatType:    incident.threatType,
+        location:      incident.location || "Unknown",
+        count:         0,
+        maxConfidence: 0,
+        latestAt:      null,
       };
     }
 
-    grouped[key].count += 1;
-    grouped[key].maxConfidence = Math.max(
-      grouped[key].maxConfidence,
-      i.confidence
-    );
+    grouped[key].count        += 1;
+    grouped[key].maxConfidence = Math.max(grouped[key].maxConfidence, confidence);
+
+    // Track the most recent incident time for the group
+    const ts = incident.createdAt ? new Date(incident.createdAt) : null;
+    if (ts && (!grouped[key].latestAt || ts > grouped[key].latestAt)) {
+      grouped[key].latestAt = ts;
+    }
   });
 
-  // 🔥 CREATE ALERTS
-  const alerts = Object.values(grouped)
-    .filter((g) => g.maxConfidence >= 50) // include medium+ threats
+  return Object.values(grouped)
     .map((g) => {
       let priority = "low";
-
-      if (g.maxConfidence > 85 || g.count >= 5) {
-        priority = "critical";
-      } else if (g.maxConfidence > 70 || g.count >= 3) {
-        priority = "warning";
-      }
+      if (g.maxConfidence > 85 || g.count >= 5) priority = "critical";
+      else if (g.maxConfidence > 70 || g.count >= 3) priority = "warning";
 
       return {
         threatType: g.threatType,
-        location: g.location,
-        count: g.count,
-        message: `⚠️ ${g.threatType} detected ${g.count} time(s) in ${g.location}`,
-        priority
+        location:   g.location,
+        count:      g.count,
+        confidence: g.maxConfidence,
+        // Risk label matches what the rest of your backend produces
+        risk:       g.maxConfidence >= 90 ? "HIGH" : g.maxConfidence >= 70 ? "MEDIUM" : "LOW",
+        priority,
+        message:    `⚠️ ${g.threatType} detected ${g.count} time(s) in ${g.location}`,
+        latestAt:   g.latestAt,
       };
-    });
-
-  // 🔥 SORT BY PRIORITY + COUNT
-  const priorityOrder = {
-    critical: 3,
-    warning: 2,
-    low: 1
-  };
-
-  return alerts
+    })
     .sort(
       (a, b) =>
-        priorityOrder[b.priority] - priorityOrder[a.priority] ||
+        PRIORITY_ORDER[b.priority] - PRIORITY_ORDER[a.priority] ||
         b.count - a.count
     )
-    .slice(0, 5); // 🔥 limit top 5 alerts
+    .slice(0, 10); // top 10 — dashboard can slice further if needed
 };

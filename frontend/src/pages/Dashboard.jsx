@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+// src/pages/Dashboard.jsx
+import { useEffect, useRef, useState, useCallback, memo } from "react";
 import api from "../services/api";
 import toast from "react-hot-toast";
 import SimpleChart from "../components/SimpleChart";
 import { motion, AnimatePresence } from "framer-motion";
 import { io } from "socket.io-client";
+
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "https://cybersafe-africa.onrender.com";
 
 /* ─────────────────────────────────────────
    SEVERITY CONFIG
@@ -53,7 +56,7 @@ function LiveDot() {
 /* ─────────────────────────────────────────
    STAT CARD
 ───────────────────────────────────────── */
-function StatCard({ title, value, icon, accent = "#6366f1", trend }) {
+const StatCard = memo(function StatCard({ title, value, icon, accent = "#6366f1", trend }) {
   return (
     <motion.div variants={fadeUp} style={{
       background: "linear-gradient(135deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)",
@@ -64,14 +67,12 @@ function StatCard({ title, value, icon, accent = "#6366f1", trend }) {
       overflow: "hidden",
       backdropFilter: "blur(12px)",
     }}>
-      {/* accent glow */}
       <div style={{
         position: "absolute", top: -30, right: -20,
         width: 100, height: 100, borderRadius: "50%",
         background: accent, opacity: 0.06, filter: "blur(24px)",
         pointerEvents: "none",
       }} />
-
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
           <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", fontWeight: 500, letterSpacing: "0.08em", textTransform: "uppercase", margin: 0 }}>
@@ -80,7 +81,7 @@ function StatCard({ title, value, icon, accent = "#6366f1", trend }) {
           <p style={{ fontSize: 28, fontWeight: 600, color: "#f1f5f9", margin: "6px 0 0", fontFamily: "'DM Mono', monospace", letterSpacing: "-0.02em" }}>
             {value ?? "—"}
           </p>
-          {trend && (
+          {trend != null && (
             <p style={{ fontSize: 12, color: trend > 0 ? "#34d399" : "#f87171", margin: "4px 0 0" }}>
               {trend > 0 ? "↑" : "↓"} {Math.abs(trend)}% vs last hour
             </p>
@@ -98,19 +99,19 @@ function StatCard({ title, value, icon, accent = "#6366f1", trend }) {
       </div>
     </motion.div>
   );
-}
+});
 
 /* ─────────────────────────────────────────
    ALERT BANNER
 ───────────────────────────────────────── */
-function AlertBanner({ alert, onDismiss }) {
+const AlertBanner = memo(function AlertBanner({ alert, onDismiss }) {
   return (
     <AnimatePresence>
       {alert && (
         <motion.div
           key={alert._id || alert.message}
-          initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-          animate={{ opacity: 1, height: "auto", marginBottom: 0 }}
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
           exit={{ opacity: 0, height: 0 }}
           transition={{ duration: 0.3 }}
           style={{
@@ -128,24 +129,29 @@ function AlertBanner({ alert, onDismiss }) {
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 14, color: "#f87171", fontWeight: 600 }}>🚨</span>
             <div>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#fca5a5" }}>{alert.threatType}</span>
-              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginLeft: 8 }}>{alert.message}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#fca5a5" }}>
+                {alert.threatType}
+              </span>
+              <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", marginLeft: 8 }}>
+                {alert.description || alert.message || ""}
+              </span>
             </div>
           </div>
           <button
             onClick={onDismiss}
+            aria-label="Dismiss alert"
             style={{ background: "none", border: "none", color: "rgba(255,255,255,0.3)", cursor: "pointer", fontSize: 16, padding: 0, lineHeight: 1 }}
           >✕</button>
         </motion.div>
       )}
     </AnimatePresence>
   );
-}
+});
 
 /* ─────────────────────────────────────────
    INSIGHT CARD
 ───────────────────────────────────────── */
-function InsightCard({ insight, index }) {
+const InsightCard = memo(function InsightCard({ insight }) {
   const sev = getSeverity(insight.confidence);
   return (
     <motion.div
@@ -193,7 +199,7 @@ function InsightCard({ insight, index }) {
               stroke={sev.color} strokeWidth={3}
               strokeLinecap="round"
               strokeDasharray={`${2 * Math.PI * 18}`}
-              strokeDashoffset={`${2 * Math.PI * 18 * (1 - insight.confidence / 100)}`}
+              strokeDashoffset={`${2 * Math.PI * 18 * (1 - (insight.confidence || 0) / 100)}`}
               style={{ transition: "stroke-dashoffset 0.8s ease" }}
             />
           </svg>
@@ -202,18 +208,18 @@ function InsightCard({ insight, index }) {
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: 10, fontWeight: 700, color: sev.color, fontFamily: "'DM Mono', monospace",
           }}>
-            {insight.confidence}
+            {insight.confidence ?? 0}
           </span>
         </div>
       </div>
     </motion.div>
   );
-}
+});
 
 /* ─────────────────────────────────────────
    INCIDENT ROW
 ───────────────────────────────────────── */
-function IncidentRow({ incident }) {
+const IncidentRow = memo(function IncidentRow({ incident }) {
   const sev = getSeverity(incident.confidence);
   const [expanded, setExpanded] = useState(false);
 
@@ -249,10 +255,7 @@ function IncidentRow({ incident }) {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-          <span style={{
-            fontSize: 12, fontWeight: 700,
-            color: sev.color, fontFamily: "'DM Mono', monospace",
-          }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: sev.color, fontFamily: "'DM Mono', monospace" }}>
             {incident.confidence}%
           </span>
           <span style={{
@@ -263,7 +266,7 @@ function IncidentRow({ incident }) {
           }}>
             {sev.label}
           </span>
-          <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 12, transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.2s" }}>
+          <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 12, display: "inline-block", transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
             ▾
           </span>
         </div>
@@ -279,15 +282,35 @@ function IncidentRow({ incident }) {
             style={{ overflow: "hidden" }}
           >
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-              <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.38)", lineHeight: 1.6 }}>
+              <p style={{ margin: "0 0 4px", fontSize: 12, color: "rgba(255,255,255,0.38)", lineHeight: 1.6 }}>
                 <span style={{ color: "rgba(255,255,255,0.25)", marginRight: 6 }}>Detection</span>
                 {incident.reason || "AI-driven behavioural analysis"}
               </p>
+              {incident.location && incident.location !== "Unknown" && (
+                <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.25)", lineHeight: 1.6 }}>
+                  <span style={{ marginRight: 6 }}>Source</span>
+                  {incident.location}
+                </p>
+              )}
             </div>
           </motion.div>
         )}
       </AnimatePresence>
     </motion.div>
+  );
+});
+
+/* ─────────────────────────────────────────
+   SKELETON LOADER
+───────────────────────────────────────── */
+function Skeleton({ height = 72, mb = 10 }) {
+  return (
+    <div style={{
+      height, borderRadius: 12, marginBottom: mb,
+      background: "rgba(255,255,255,0.03)",
+      border: "1px solid rgba(255,255,255,0.05)",
+      animation: "pulse 1.2s ease-in-out infinite",
+    }} />
   );
 }
 
@@ -295,15 +318,16 @@ function IncidentRow({ incident }) {
    MAIN DASHBOARD
 ───────────────────────────────────────── */
 function Dashboard() {
-  const [stats, setStats] = useState({ totalReports: 0, mostCommonThreat: "" });
-  const [incidents, setIncidents] = useState([]);
-  const [alerts, setAlerts] = useState([]);
-  const [chartData, setChartData] = useState([]);
-  const [aiInsights, setAiInsights] = useState([]);
-  const [loadingAI, setLoadingAI] = useState(false);
+  const [stats, setStats]               = useState({ totalReports: 0, mostCommonThreat: "" });
+  const [incidents, setIncidents]       = useState([]);
+  const [alerts, setAlerts]             = useState([]);
+  const [chartData, setChartData]       = useState([]);
+  const [aiInsights, setAiInsights]     = useState([]);
+  const [loadingAI, setLoadingAI]       = useState(false);
   const [dismissedAlert, setDismissedAlert] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(null);
+  const [lastUpdated, setLastUpdated]   = useState(null);
 
+  // Track toast IDs to avoid duplicate notifications
   const shownToastIds = useRef(new Set());
 
   const buildChartData = useCallback((data) => {
@@ -321,13 +345,14 @@ function Dashboard() {
     try {
       setLoadingAI(true);
       const res = await api.get("/ai/insights");
-      setAiInsights(res.data.insights || []);
+      // Backend now returns { success, total, insights: [...] }
+      setAiInsights(res.data.insights ?? []);
     } catch {
       setAiInsights([{
         threatType: "System",
         confidence: 0,
         explanation: "AI analysis unavailable — check backend connection.",
-        recommendation: "Verify the /ai/insights endpoint is reachable."
+        recommendation: "Verify the /ai/insights endpoint is reachable.",
       }]);
     } finally {
       setLoadingAI(false);
@@ -342,11 +367,12 @@ function Dashboard() {
         api.get("/incidents/alerts"),
       ]);
 
-      const data = incidentsRes.data.data || [];
-      setStats(statsRes.data || {});
-      setIncidents(data);
-      setAlerts(alertsRes.data.data || []);
-      setChartData(buildChartData(data));
+      // Guard against unexpected shapes
+      const incidentList = incidentsRes.data?.data ?? [];
+      setStats(statsRes.data ?? {});
+      setIncidents(incidentList);
+      setAlerts(alertsRes.data?.data ?? []);
+      setChartData(buildChartData(incidentList));
       setLastUpdated(new Date());
       fetchAIInsights();
     } catch {
@@ -354,23 +380,42 @@ function Dashboard() {
     }
   }, [buildChartData, fetchAIInsights]);
 
+  // Initial load
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Socket — single stable connection, cleaned up on unmount
   useEffect(() => {
-    const socket = io("https://cybersafe-africa.onrender.com");
+    const socket = io(SOCKET_URL, {
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000,
+    });
+
+    socket.on("connect_error", (err) => {
+      console.warn("Socket connection failed:", err.message);
+    });
 
     socket.on("new-threat", (newIncident) => {
+      // Use functional updates to avoid stale closure over incidents/chartData
       setIncidents((prev) => {
         const updated = [newIncident, ...prev];
         setChartData(buildChartData(updated));
-        fetchAIInsights();
         return updated;
       });
 
-      setStats((prev) => ({ ...prev, totalReports: prev.totalReports + 1 }));
+      setStats((prev) => ({
+        ...prev,
+        totalReports: (prev.totalReports || 0) + 1,
+      }));
+
       setLastUpdated(new Date());
 
-      if (!shownToastIds.current.has(newIncident._id)) {
+      // Refresh AI insights after new threat — debounced to avoid hammering
+      fetchAIInsights();
+
+      // Deduplicate toasts by incident ID
+      const id = newIncident._id;
+      if (id && !shownToastIds.current.has(id)) {
+        shownToastIds.current.add(id);
         toast.error(`${newIncident.threatType} detected`, {
           style: {
             background: "#0f172a",
@@ -380,16 +425,18 @@ function Dashboard() {
             fontSize: 13,
           },
         });
-        shownToastIds.current.add(newIncident._id);
       }
     });
 
-    return () => socket.disconnect();
+    return () => {
+      socket.disconnect();
+    };
+  // fetchAIInsights and buildChartData are stable useCallback refs — safe in deps
   }, [buildChartData, fetchAIInsights]);
 
-  const topAlert = !dismissedAlert ? alerts[0] : null;
+  const topAlert      = !dismissedAlert ? alerts[0] : null;
   const criticalCount = incidents.filter(i => (i.confidence || 0) >= 90).length;
-  const highCount = incidents.filter(i => (i.confidence || 0) >= 75 && (i.confidence || 0) < 90).length;
+  const highCount     = incidents.filter(i => (i.confidence || 0) >= 75 && (i.confidence || 0) < 90).length;
 
   return (
     <div style={{
@@ -402,6 +449,7 @@ function Dashboard() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
+        @keyframes pulse { 0%,100%{opacity:.5} 50%{opacity:1} }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
@@ -423,7 +471,7 @@ function Dashboard() {
                 Threat Intelligence
               </h1>
               <p style={{ margin: "4px 0 0", fontSize: 14, color: "rgba(255,255,255,0.35)" }}>
-                AI-powered cyber threat detection & analysis
+                AI-powered cyber threat detection &amp; analysis
               </p>
             </div>
 
@@ -456,11 +504,11 @@ function Dashboard() {
 
           {/* ── STAT CARDS ── */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
-            <StatCard title="Total Threats" value={stats.totalReports} icon="🛡" accent="#6366f1" />
-            <StatCard title="Most Common" value={stats.mostCommonThreat || "—"} icon="📊" accent="#8b5cf6" />
-            <StatCard title="Active Incidents" value={incidents.length} icon="⚡" accent="#06b6d4" />
-            <StatCard title="Critical" value={criticalCount} icon="🚨" accent="#ef4444" />
-            <StatCard title="High Severity" value={highCount} icon="⚠" accent="#fb923c" />
+            <StatCard title="Total Threats"    value={stats.totalReports}          icon="🛡"  accent="#6366f1" />
+            <StatCard title="Most Common"      value={stats.mostCommonThreat || "—"} icon="📊" accent="#8b5cf6" />
+            <StatCard title="Active Incidents" value={incidents.length}             icon="⚡"  accent="#06b6d4" />
+            <StatCard title="Critical"         value={criticalCount}                icon="🚨"  accent="#ef4444" />
+            <StatCard title="High Severity"    value={highCount}                   icon="⚠"  accent="#fb923c" />
           </div>
 
           {/* ── MAIN GRID ── */}
@@ -493,20 +541,21 @@ function Dashboard() {
                   </span>
                 )}
               </div>
-              <style>{`@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}`}</style>
 
               <motion.div variants={stagger} initial="hidden" animate="show">
-                {!loadingAI && aiInsights.map((insight, i) => (
-                  <InsightCard key={i} insight={insight} index={i} />
-                ))}
-                {loadingAI && Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} style={{
-                    height: 72, borderRadius: 12, marginBottom: 10,
-                    background: "rgba(255,255,255,0.03)",
-                    border: "1px solid rgba(255,255,255,0.05)",
-                    animation: "pulse 1.2s ease-in-out infinite",
-                  }} />
-                ))}
+                {loadingAI
+                  ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} />)
+                  : aiInsights.length > 0
+                    ? aiInsights.map((insight) => (
+                        // Use incidentId if available; fall back to description
+                        <InsightCard key={insight.incidentId ?? insight.description} insight={insight} />
+                      ))
+                    : (
+                      <div style={{ textAlign: "center", padding: "40px 20px", color: "rgba(255,255,255,0.2)", fontSize: 14 }}>
+                        No AI insights yet
+                      </div>
+                    )
+                }
               </motion.div>
             </motion.div>
 
@@ -550,16 +599,13 @@ function Dashboard() {
                   Recent Activity
                 </h2>
               </div>
-              <span style={{
-                fontSize: 12, color: "rgba(255,255,255,0.3)",
-                fontFamily: "'DM Mono', monospace",
-              }}>
+              <span style={{ fontSize: 12, color: "rgba(255,255,255,0.3)", fontFamily: "'DM Mono', monospace" }}>
                 {incidents.length} events
               </span>
             </div>
 
             <motion.div variants={stagger} initial="hidden" animate="show" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {incidents.length === 0 && (
+              {incidents.length === 0 ? (
                 <div style={{
                   textAlign: "center", padding: "40px 20px",
                   color: "rgba(255,255,255,0.2)", fontSize: 14,
@@ -567,10 +613,11 @@ function Dashboard() {
                 }}>
                   No incidents recorded yet
                 </div>
+              ) : (
+                incidents.map((incident) => (
+                  <IncidentRow key={incident._id} incident={incident} />
+                ))
               )}
-              {incidents.map((incident) => (
-                <IncidentRow key={incident._id} incident={incident} />
-              ))}
             </motion.div>
           </motion.div>
 

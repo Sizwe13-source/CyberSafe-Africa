@@ -1,3 +1,4 @@
+//src/modelsl/Admin.js
 import mongoose from "mongoose";
 
 const adminSchema = new mongoose.Schema(

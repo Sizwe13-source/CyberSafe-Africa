@@ -1,3 +1,4 @@
+//src/routes/activityRoutes.js
 import express from "express";
 import { analyzeActivity } from "../controllers/activityController.js";
 

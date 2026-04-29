@@ -1,3 +1,4 @@
+// controllers/incidentController.js
 import Incident from "../models/Incident.js";
 import { generateAlerts } from "../utils/generateAlerts.js";
 import { getSafetyTips } from "../utils/safetyTips.js";
@@ -5,8 +6,10 @@ import { analyzeIncident } from "../utils/aiAnalysis.js";
 import {
   validateIncidentInput,
   validateStatus,
-  validateSearchQuery
+  validateSearchQuery,
 } from "../utils/validators.js";
+
+const LIST_LIMIT = 20;
 
 /* ===============================
    ✅ CREATE INCIDENT (AI-ONLY)
@@ -15,42 +18,25 @@ export const createIncident = async (req, res) => {
   try {
     const { description, location } = req.body;
 
-    // 🔍 Validate input
     const validation = validateIncidentInput({ description, location });
-
     if (!validation.isValid) {
       return res.status(400).json({
         success: false,
         message: "Validation failed",
-        errors: validation.errors
+        errors: validation.errors,
       });
     }
 
     console.log("📩 Incoming incident:", description);
 
-    // 🤖 AI analysis
-    const aiResult = await analyzeIncident(description);
+    // analyzeIncident now returns a parsed object — no JSON.parse needed
+    const parsed = await analyzeIncident(description);
 
-    let parsed;
+    const threatType   = parsed.threatType    || "Other";
+    const confidence   = Number(parsed.confidence) || 50;   // always a number
+    const reason       = parsed.explanation   || "AI analysis";
+    const recommendation = parsed.recommendation || "";
 
-    try {
-      parsed = JSON.parse(aiResult);
-    } catch (err) {
-      console.error("⚠️ AI JSON parse failed:", aiResult);
-
-      parsed = {
-        threatType: "Other",
-        confidence: "50",
-        explanation: "AI parsing failed",
-        recommendation: "Proceed with caution"
-      };
-    }
-
-    const threatType = parsed.threatType || "Other";
-    const confidence = parseInt(parsed.confidence) || 50;
-    const reason = parsed.explanation || "AI analysis";
-
-    // 💾 Save to DB
     const newIncident = await Incident.create({
       name: "System AI Detection",
       description,
@@ -58,13 +44,13 @@ export const createIncident = async (req, res) => {
       confidence,
       reason,
       location: location || "Unknown",
-      status: threatType === "Safe" ? "safe" : "pending"
+      status: threatType === "Safe" ? "safe" : "pending",
     });
 
-    // ⚡ Real-time alert
-    const io = req.app.get("io");
-    if (io) {
-      io.emit("new-threat", newIncident);
+    // Real-time socket alert (skip "Safe" to reduce noise)
+    if (threatType !== "Safe") {
+      const io = req.app.get("io");
+      if (io) io.emit("new-threat", newIncident);
     }
 
     return res.status(201).json({
@@ -74,25 +60,18 @@ export const createIncident = async (req, res) => {
         type: threatType,
         confidence,
         risk:
-          confidence > 70
-            ? "HIGH"
-            : confidence > 40
-            ? "MEDIUM"
-            : "LOW",
-        reason
+          confidence > 70 ? "HIGH" :
+          confidence > 40 ? "MEDIUM" : "LOW",
+        reason,
       },
-      recommendation: parsed.recommendation,
+      recommendation,
       tips: getSafetyTips(threatType),
-      data: newIncident
+      data: newIncident,
     });
 
   } catch (error) {
-    console.error("🔥 ERROR:", error.message);
-
-    return res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    console.error("🔥 createIncident error:", error.message);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -101,18 +80,25 @@ export const createIncident = async (req, res) => {
 ================================ */
 export const getAllIncidents = async (req, res) => {
   try {
-    const incidents = await Incident.find().sort({ createdAt: -1 });
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.min(LIST_LIMIT, parseInt(req.query.limit) || LIST_LIMIT);
+    const skip  = (page - 1) * limit;
+
+    const [incidents, total] = await Promise.all([
+      Incident.find().sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Incident.countDocuments(),
+    ]);
 
     return res.status(200).json({
       success: true,
-      data: incidents.slice(0, 20)
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+      data: incidents,
     });
 
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -121,36 +107,32 @@ export const getAllIncidents = async (req, res) => {
 ================================ */
 export const getDashboardStats = async (req, res) => {
   try {
-    const incidents = await Incident.find();
+    // Single aggregation instead of loading every document into memory
+    const [countResult, typeStats, recentIncidents] = await Promise.all([
+      Incident.countDocuments(),
+      Incident.aggregate([
+        { $group: { _id: "$threatType", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ]),
+      Incident.find().sort({ createdAt: -1 }).limit(5),
+    ]);
 
-    const totalReports = incidents.length;
-
-    const threatCounts = {};
-    incidents.forEach((i) => {
-      const type = i.threatType || "Other";
-      threatCounts[type] = (threatCounts[type] || 0) + 1;
-    });
-
-    let mostCommonThreat = "No data";
-
-    if (totalReports > 0) {
-      mostCommonThreat = Object.keys(threatCounts).reduce((a, b) =>
-        threatCounts[a] > threatCounts[b] ? a : b
-      );
-    }
+    const totalReports = countResult;
+    const mostCommonThreat = typeStats[0]?._id || "No data";
 
     return res.status(200).json({
       success: true,
       totalReports,
       mostCommonThreat,
-      recentIncidents: incidents.slice(0, 5)
+      threatBreakdown: typeStats.map((s) => ({
+        threatType: s._id,
+        count: s.count,
+      })),
+      recentIncidents,
     });
 
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -159,16 +141,12 @@ export const getDashboardStats = async (req, res) => {
 ================================ */
 export const updateIncidentStatus = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id }     = req.params;
     const { status } = req.body;
 
     const validation = validateStatus(status);
-
     if (!validation.isValid) {
-      return res.status(400).json({
-        success: false,
-        message: validation.error
-      });
+      return res.status(400).json({ success: false, message: validation.error });
     }
 
     const updated = await Incident.findByIdAndUpdate(
@@ -178,23 +156,17 @@ export const updateIncidentStatus = async (req, res) => {
     );
 
     if (!updated) {
-      return res.status(404).json({
-        success: false,
-        message: "Incident not found"
-      });
+      return res.status(404).json({ success: false, message: "Incident not found" });
     }
 
     return res.status(200).json({
       success: true,
       message: "Status updated successfully",
-      data: updated
+      data: updated,
     });
 
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -206,36 +178,27 @@ export const getFilteredIncidents = async (req, res) => {
     const { search = "", threatType = "", status = "" } = req.query;
 
     if (!validateSearchQuery(search)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid search query"
-      });
+      return res.status(400).json({ success: false, message: "Invalid search query" });
     }
 
     const query = {};
-
     if (threatType) query.threatType = threatType;
-    if (status) query.status = status;
-
+    if (status)     query.status     = status;
     if (search) {
       query.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } }
+        { name:        { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
       ];
     }
 
-    const incidents = await Incident.find(query).sort({ createdAt: -1 });
+    const incidents = await Incident.find(query)
+      .sort({ createdAt: -1 })
+      .limit(LIST_LIMIT);
 
-    return res.status(200).json({
-      success: true,
-      data: incidents.slice(0, 20)
-    });
+    return res.status(200).json({ success: true, data: incidents });
 
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -245,27 +208,17 @@ export const getFilteredIncidents = async (req, res) => {
 export const getThreatStats = async (req, res) => {
   try {
     const stats = await Incident.aggregate([
-      {
-        $group: {
-          _id: "$threatType",
-          count: { $sum: 1 }
-        }
-      }
+      { $group: { _id: "$threatType", count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
     ]);
 
     return res.status(200).json({
       success: true,
-      data: stats.map((s) => ({
-        threatType: s._id,
-        count: s.count
-      }))
+      data: stats.map((s) => ({ threatType: s._id, count: s.count })),
     });
 
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -274,19 +227,15 @@ export const getThreatStats = async (req, res) => {
 ================================ */
 export const getCommunityAlerts = async (req, res) => {
   try {
-    const incidents = await Incident.find().sort({ createdAt: -1 });
+    const incidents = await Incident.find()
+      .sort({ createdAt: -1 })
+      .limit(50);                     // cap what generateAlerts processes
 
     const alerts = generateAlerts(incidents);
 
-    return res.status(200).json({
-      success: true,
-      data: alerts
-    });
+    return res.status(200).json({ success: true, data: alerts });
 
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
