@@ -25,7 +25,7 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5500",
   "http://127.0.0.1:5503",
-  "https://media-on-africa-learning-hub.github.io/Media-On-Africa-Learning-Hub/forum.html",
+  "https://media-on-africa-learning-hub.github.io",
   "https://cyber-safe-africa.vercel.app",
   "https://media-on-africa-learning-hub-main.vercel.app",
 ];
