@@ -410,7 +410,7 @@ function Home() {
 
             {/* CTAs */}
             <motion.div variants={fadeUp} style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 48 }}>
-              <Link to="/admin/dashboard" style={{
+              <Link to="/dashboard" style={{
                 position: "relative",
                 display: "inline-flex", alignItems: "center", gap: 8,
                 background: "var(--c-magenta)",

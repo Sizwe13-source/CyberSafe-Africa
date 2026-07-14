@@ -9,7 +9,7 @@ const NAV_LINKS = [
   { label: "Home",               path: "/",                code: "01" },
   { label: "Threat Intelligence",path: "/threats",         code: "02" },
   { label: "Safety Protocols",   path: "/tips",            code: "03" },
-  { label: "Dashboard",          path: "/admin/dashboard", code: "04", highlight: true },
+  { label: "Dashboard",          path: "/dashboard", code: "04", highlight: true },
 ];
 
 /* ─────────────────────────────────────────
@@ -249,12 +249,12 @@ function Navbar() {
 
               {/* Dashboard CTA */}
               <Link
-                to="/admin/dashboard"
+                to="/dashboard"
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 6,
-                  background: isActive("/admin/dashboard") ? "#22d3ee" : "rgba(34,211,238,0.08)",
+                  background: isActive("/dashboard") ? "#22d3ee" : "rgba(34,211,238,0.08)",
                   border: "1px solid rgba(34,211,238,0.35)",
-                  color: isActive("/admin/dashboard") ? "#000" : "#22d3ee",
+                  color: isActive("/dashboard") ? "#000" : "#22d3ee",
                   fontFamily: "'Syne', sans-serif",
                   fontWeight: 700,
                   fontSize: 11,
@@ -268,13 +268,13 @@ function Navbar() {
                 }}
                 className="dashboard-cta"
                 onMouseEnter={e => {
-                  if (!isActive("/admin/dashboard")) {
+                  if (!isActive("/dashboard")) {
                     e.currentTarget.style.background = "rgba(34,211,238,0.15)";
                     e.currentTarget.style.boxShadow = "0 0 16px rgba(34,211,238,0.12)";
                   }
                 }}
                 onMouseLeave={e => {
-                  if (!isActive("/admin/dashboard")) {
+                  if (!isActive("/dashboard")) {
                     e.currentTarget.style.background = "rgba(34,211,238,0.08)";
                     e.currentTarget.style.boxShadow = "none";
                   }

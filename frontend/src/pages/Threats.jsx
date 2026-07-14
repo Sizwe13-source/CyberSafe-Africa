@@ -324,7 +324,7 @@ function Threats() {
             </h2>
 
             <div style={{ display: "flex", gap: 10 }}>
-              <Link to="/admin/dashboard" style={{
+              <Link to="/dashboard" style={{
                 display: "inline-flex", alignItems: "center", gap: 8,
                 background: "#e040fb",
                 color: "#000",
@@ -474,7 +474,7 @@ function Threats() {
             </p>
           </div>
 
-          <Link to="/admin/dashboard" style={{
+          <Link to="/dashboard" style={{
             flexShrink: 0,
             display: "inline-flex", alignItems: "center", gap: 10,
             background: "rgba(224,64,251,0.1)",

@@ -29,14 +29,18 @@ api.interceptors.response.use(
   (error) => {
     const status = error.response?.status;
 
-    // 🔥 UNAUTHORIZED → LOGOUT
+    // 🔥 UNAUTHORIZED → LOGOUT (only if an admin was actually logged in)
     if (status === 401) {
-      console.warn("⚠️ Unauthorized - logging out");
+      const hadToken = localStorage.getItem("adminToken");
 
-      localStorage.removeItem("adminToken");
-      localStorage.removeItem("adminUser");
+      if (hadToken) {
+        console.warn("⚠️ Unauthorized - logging out");
 
-      window.location.href = "/admin/login";
+        localStorage.removeItem("adminToken");
+        localStorage.removeItem("adminUser");
+
+        window.location.href = "/admin/login";
+      }
     }
 
     // 🔥 SERVER ERROR

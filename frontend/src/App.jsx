@@ -112,20 +112,15 @@ function App() {
           <Route path="/threats" element={<Threats />} />
           <Route path="/tips"    element={<Tips />} />
 
+          {/* Dashboard (public) */}
+          <Route path="/dashboard" element={<Dashboard />} />
+
           {/* Admin */}
           <Route path="/admin/login" element={<AdminLogin />} />
-          <Route
-            path="/admin/dashboard"
-            element={
-              <AdminProtectedRoute>
-                <Dashboard />
-              </AdminProtectedRoute>
-            }
-          />
 
           {/* Redirects */}
-          <Route path="/dashboard" element={<Navigate to="/admin/dashboard" />} />
-          <Route path="/admin"     element={<Navigate to="/admin/login" />} />
+          <Route path="/admin/dashboard" element={<Navigate to="/dashboard" />} />
+          <Route path="/admin"           element={<Navigate to="/admin/login" />} />
           <Route path="/app"       element={<Navigate to="/admin/dashboard" />} />
 
           {/* Fallback */}
