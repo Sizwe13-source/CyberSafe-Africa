@@ -4,6 +4,7 @@ import api from "../services/api";
 import toast from "react-hot-toast";
 import SimpleChart from "../components/SimpleChart";
 import { motion, AnimatePresence } from "framer-motion";
+import ComplianceCard from "../components/ComplianceCard";
 import { io } from "socket.io-client";
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "https://cybersafe-africa.onrender.com";
@@ -147,6 +148,7 @@ const AlertBanner = memo(function AlertBanner({ alert, onDismiss }) {
     </AnimatePresence>
   );
 });
+
 
 /* ─────────────────────────────────────────
    INSIGHT CARD
@@ -499,9 +501,12 @@ function Dashboard() {
             </div>
           </motion.div>
 
+          {/* ── COMPLIANCE ── */}
+          <ComplianceCard />  
+
           {/* ── ALERT BANNER ── */}
           <AlertBanner alert={topAlert} onDismiss={() => setDismissedAlert(true)} />
-
+            
           {/* ── STAT CARDS ── */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
             <StatCard title="Total Threats"    value={stats.totalReports}          icon="🛡"  accent="#6366f1" />
