@@ -109,7 +109,6 @@ function App() {
             <Route path="/faq" element={<FAQ />} />
             <Route path="/login" element={<Login />} />
             <Route path="/privacy" element={<Privacy />} />
-            <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/dashboard" element={<Navigate to="/dashboard" replace />} />
             <Route path="/scam-checker" element={<ScamChecker />} />
             <Route path="/password-checker" element={<PasswordChecker />} />
