@@ -6,10 +6,14 @@ import { motion, AnimatePresence } from "framer-motion";
    NAV LINKS CONFIG
 ───────────────────────────────────────── */
 const NAV_LINKS = [
-  { label: "Home",               path: "/",                code: "01" },
-  { label: "Threat Intelligence",path: "/threats",         code: "02" },
-  { label: "Safety Protocols",   path: "/tips",            code: "03" },
-  { label: "Dashboard",          path: "/dashboard", code: "04", highlight: true },
+  { label: "Home",               path: "/",                   code: "01" },
+  { label: "Threat Intelligence",path: "/threats",            code: "02" },
+  { label: "Safety Protocols",   path: "/tips",               code: "03" },
+  { label: "Scam Checker",       path: "/scam-checker",       code: "05" },
+  { label: "Password Checker",   path: "/password-checker",   code: "06" },
+  { label: "Wi‑Fi Checker",      path: "/connection-checker", code: "08" },
+  { label: "Incident Report",    path: "/incident-report",    code: "07" },
+  { label: "Dashboard",          path: "/dashboard",          code: "04", highlight: true },
 ];
 
 /* ─────────────────────────────────────────

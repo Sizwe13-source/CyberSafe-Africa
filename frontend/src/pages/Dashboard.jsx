@@ -1,13 +1,15 @@
 // src/pages/Dashboard.jsx
 import { useEffect, useRef, useState, useCallback, memo } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import toast from "react-hot-toast";
 import SimpleChart from "../components/SimpleChart";
 import { motion, AnimatePresence } from "framer-motion";
 import ComplianceCard from "../components/ComplianceCard";
 import { io } from "socket.io-client";
+import { useAuth } from "../context/AuthContext";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "https://cybersafe-africa.onrender.com";
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || "http://localhost:5001";
 
 /* ─────────────────────────────────────────
    SEVERITY CONFIG
@@ -149,7 +151,6 @@ const AlertBanner = memo(function AlertBanner({ alert, onDismiss }) {
   );
 });
 
-
 /* ─────────────────────────────────────────
    INSIGHT CARD
 ───────────────────────────────────────── */
@@ -221,9 +222,25 @@ const InsightCard = memo(function InsightCard({ insight }) {
 /* ─────────────────────────────────────────
    INCIDENT ROW
 ───────────────────────────────────────── */
-const IncidentRow = memo(function IncidentRow({ incident }) {
+const IncidentRow = memo(function IncidentRow({ incident, onStatusChange }) {
   const sev = getSeverity(incident.confidence);
   const [expanded, setExpanded] = useState(false);
+  const [updating, setUpdating] = useState(false);
+
+  const updateStatus = async (e, status) => {
+    e.stopPropagation();
+    if (!incident._id || updating) return;
+    try {
+      setUpdating(true);
+      await api.patch(`/incidents/${incident._id}/status`, { status });
+      toast.success(`Marked as ${status}`);
+      onStatusChange?.(incident._id, status);
+    } catch {
+      toast.error("Could not update status");
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   return (
     <motion.div
@@ -250,6 +267,11 @@ const IncidentRow = memo(function IncidentRow({ incident }) {
           <div style={{ minWidth: 0 }}>
             <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.85)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {incident.threatType}
+              {incident.status && (
+                <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 500, color: "rgba(255,255,255,0.35)" }}>
+                  · {incident.status}
+                </span>
+              )}
             </p>
             <p style={{ margin: "2px 0 0", fontSize: 12, color: "rgba(255,255,255,0.4)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {incident.description}
@@ -289,11 +311,33 @@ const IncidentRow = memo(function IncidentRow({ incident }) {
                 {incident.reason || "AI-driven behavioural analysis"}
               </p>
               {incident.location && incident.location !== "Unknown" && (
-                <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.25)", lineHeight: 1.6 }}>
+                <p style={{ margin: "0 0 10px", fontSize: 12, color: "rgba(255,255,255,0.25)", lineHeight: 1.6 }}>
                   <span style={{ marginRight: 6 }}>Source</span>
                   {incident.location}
                 </p>
               )}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }} onClick={(e) => e.stopPropagation()}>
+                {["pending", "reviewed", "resolved", "safe"].map((status) => (
+                  <button
+                    key={status}
+                    type="button"
+                    disabled={updating || incident.status === status}
+                    onClick={(e) => updateStatus(e, status)}
+                    style={{
+                      fontSize: 11,
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      background: incident.status === status ? "rgba(34,211,238,0.15)" : "rgba(255,255,255,0.04)",
+                      color: incident.status === status ? "#22d3ee" : "rgba(255,255,255,0.55)",
+                      cursor: updating ? "wait" : "pointer",
+                      textTransform: "capitalize",
+                    }}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
             </div>
           </motion.div>
         )}
@@ -320,6 +364,9 @@ function Skeleton({ height = 72, mb = 10 }) {
    MAIN DASHBOARD
 ───────────────────────────────────────── */
 function Dashboard() {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
   const [stats, setStats]               = useState({ totalReports: 0, mostCommonThreat: "" });
   const [incidents, setIncidents]       = useState([]);
   const [alerts, setAlerts]             = useState([]);
@@ -329,8 +376,19 @@ function Dashboard() {
   const [dismissedAlert, setDismissedAlert] = useState(false);
   const [lastUpdated, setLastUpdated]   = useState(null);
 
-  // Track toast IDs to avoid duplicate notifications
   const shownToastIds = useRef(new Set());
+
+  const handleStatusChange = useCallback((id, status) => {
+    setIncidents((prev) =>
+      prev.map((i) => (i._id === id ? { ...i, status } : i))
+    );
+  }, []);
+
+  const handleLogout = async () => {
+    await logout();
+    toast.success("Signed out");
+    navigate("/admin/login", { replace: true });
+  };
 
   const buildChartData = useCallback((data) => {
     const map = {};
@@ -347,7 +405,6 @@ function Dashboard() {
     try {
       setLoadingAI(true);
       const res = await api.get("/ai/insights");
-      // Backend now returns { success, total, insights: [...] }
       setAiInsights(res.data.insights ?? []);
     } catch {
       setAiInsights([{
@@ -368,8 +425,6 @@ function Dashboard() {
         api.get("/incidents"),
         api.get("/incidents/alerts"),
       ]);
-
-      // Guard against unexpected shapes
       const incidentList = incidentsRes.data?.data ?? [];
       setStats(statsRes.data ?? {});
       setIncidents(incidentList);
@@ -382,10 +437,8 @@ function Dashboard() {
     }
   }, [buildChartData, fetchAIInsights]);
 
-  // Initial load
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Socket — single stable connection, cleaned up on unmount
   useEffect(() => {
     const socket = io(SOCKET_URL, {
       reconnectionAttempts: 5,
@@ -397,24 +450,18 @@ function Dashboard() {
     });
 
     socket.on("new-threat", (newIncident) => {
-      // Use functional updates to avoid stale closure over incidents/chartData
       setIncidents((prev) => {
         const updated = [newIncident, ...prev];
         setChartData(buildChartData(updated));
         return updated;
       });
-
       setStats((prev) => ({
         ...prev,
         totalReports: (prev.totalReports || 0) + 1,
       }));
-
       setLastUpdated(new Date());
-
-      // Refresh AI insights after new threat — debounced to avoid hammering
       fetchAIInsights();
 
-      // Deduplicate toasts by incident ID
       const id = newIncident._id;
       if (id && !shownToastIds.current.has(id)) {
         shownToastIds.current.add(id);
@@ -430,10 +477,7 @@ function Dashboard() {
       }
     });
 
-    return () => {
-      socket.disconnect();
-    };
-  // fetchAIInsights and buildChartData are stable useCallback refs — safe in deps
+    return () => { socket.disconnect(); };
   }, [buildChartData, fetchAIInsights]);
 
   const topAlert      = !dismissedAlert ? alerts[0] : null;
@@ -498,15 +542,27 @@ function Dashboard() {
               >
                 ↻ Refresh
               </button>
+              <button
+                onClick={handleLogout}
+                style={{
+                  background: "rgba(248,113,113,0.08)",
+                  border: "1px solid rgba(248,113,113,0.25)",
+                  borderRadius: 8, padding: "7px 14px",
+                  color: "#fca5a5", fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                Sign out
+              </button>
             </div>
           </motion.div>
 
           {/* ── COMPLIANCE ── */}
-          <ComplianceCard />  
+          <ComplianceCard />
 
           {/* ── ALERT BANNER ── */}
           <AlertBanner alert={topAlert} onDismiss={() => setDismissedAlert(true)} />
-            
+
           {/* ── STAT CARDS ── */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
             <StatCard title="Total Threats"    value={stats.totalReports}          icon="🛡"  accent="#6366f1" />
@@ -552,7 +608,6 @@ function Dashboard() {
                   ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} />)
                   : aiInsights.length > 0
                     ? aiInsights.map((insight) => (
-                        // Use incidentId if available; fall back to description
                         <InsightCard key={insight.incidentId ?? insight.description} insight={insight} />
                       ))
                     : (
@@ -620,7 +675,11 @@ function Dashboard() {
                 </div>
               ) : (
                 incidents.map((incident) => (
-                  <IncidentRow key={incident._id} incident={incident} />
+                  <IncidentRow
+                    key={incident._id}
+                    incident={incident}
+                    onStatusChange={handleStatusChange}
+                  />
                 ))
               )}
             </motion.div>

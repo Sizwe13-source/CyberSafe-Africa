@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { motion, useInView } from "framer-motion";
 import Threats from "./Threats";
+import LinkChecker from "../components/LinkChecker";
 
 /* ─────────────────────────────────────────
    FONTS & GLOBALS
@@ -110,7 +111,7 @@ function RadarOrb() {
       {/* blips */}
       {blips.map((b, i) => {
         const rad = (b.angle * Math.PI) / 180;
-        const pct = b.r / 2; // % from center
+        const pct = b.r / 2;
         return (
           <div key={i} style={{
             position: "absolute",
@@ -251,7 +252,6 @@ function TickerStrip() {
           </span>
         ))}
       </div>
-      {/* fade edges */}
       <div style={{ position: "absolute", inset: "0 auto 0 0", width: 60, background: "linear-gradient(to right, rgba(8,14,26,1), transparent)", pointerEvents: "none" }} />
       <div style={{ position: "absolute", inset: "0 0 0 auto", width: 60, background: "linear-gradient(to left, rgba(8,14,26,1), transparent)", pointerEvents: "none" }} />
     </div>
@@ -309,11 +309,9 @@ function Home() {
       {/* ── HERO ── */}
       <section style={{ position: "relative", overflow: "hidden", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
 
-        {/* Scan-line atmosphere */}
         <div style={{
           position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden", zIndex: 0,
         }}>
-          {/* grid */}
           <div style={{
             position: "absolute", inset: 0,
             backgroundImage: `
@@ -322,7 +320,6 @@ function Home() {
             `,
             backgroundSize: "52px 52px",
           }} />
-          {/* ambient glow pools */}
           <div style={{
             position: "absolute", top: "-10%", left: "5%",
             width: "40%", height: "60%", borderRadius: "50%",
@@ -333,7 +330,6 @@ function Home() {
             width: "45%", height: "55%", borderRadius: "50%",
             background: "radial-gradient(circle, rgba(224,64,251,0.07) 0%, transparent 70%)",
           }} />
-          {/* moving scan line */}
           <div style={{
             position: "absolute", left: 0, right: 0, height: "2px",
             background: "linear-gradient(90deg, transparent, rgba(34,211,238,0.15), transparent)",
@@ -342,7 +338,6 @@ function Home() {
           }} />
         </div>
 
-        {/* Content */}
         <div style={{
           position: "relative", zIndex: 1,
           maxWidth: 1280, margin: "0 auto",
@@ -355,7 +350,6 @@ function Home() {
         }}
           className="hero-grid"
         >
-          {/* ── LEFT ── */}
           <motion.div variants={stagger} initial="hidden" animate={mounted ? "show" : "hidden"}>
 
             <motion.div variants={fadeUp} style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 28 }}>
@@ -408,7 +402,6 @@ function Home() {
               </p>
             </motion.div>
 
-            {/* CTAs */}
             <motion.div variants={fadeUp} style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 48 }}>
               <Link to="/dashboard" style={{
                 position: "relative",
@@ -451,7 +444,6 @@ function Home() {
               </a>
             </motion.div>
 
-            {/* Threat breakdown bars */}
             <motion.div variants={fadeUp} style={{
               background: "rgba(8,14,26,0.8)",
               border: "1px solid var(--c-border)",
@@ -469,7 +461,6 @@ function Home() {
 
           </motion.div>
 
-          {/* ── RIGHT ── */}
           <motion.div
             initial={{ opacity: 0, scale: 0.92 }}
             animate={mounted ? { opacity: 1, scale: 1 } : {}}
@@ -481,7 +472,6 @@ function Home() {
 
         </div>
 
-        {/* Ticker */}
         <div style={{ position: "relative", zIndex: 1 }}>
           <TickerStrip />
         </div>
@@ -490,13 +480,24 @@ function Home() {
 
       {/* ── THREATS SECTION ── */}
       <div id="threats" style={{ position: "relative" }}>
-        {/* section divider */}
         <div style={{
           height: 1,
           background: "linear-gradient(90deg, transparent, rgba(34,211,238,0.2), rgba(224,64,251,0.2), transparent)",
           margin: "0",
         }} />
         <Threats />
+      </div>
+
+      {/* ── LINK CHECKER SECTION ── */}
+      <div style={{ position: "relative" }}>
+        <div style={{
+          height: 1,
+          background: "linear-gradient(90deg, transparent, rgba(34,211,238,0.2), rgba(224,64,251,0.2), transparent)",
+          margin: "0",
+        }} />
+        <section style={{ maxWidth: 720, margin: "0 auto", padding: "80px 24px" }}>
+          <LinkChecker />
+        </section>
       </div>
 
       {/* responsive stacking */}
