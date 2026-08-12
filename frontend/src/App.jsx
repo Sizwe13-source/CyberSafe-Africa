@@ -16,7 +16,6 @@ import Home from "./pages/Home";
 import Threats from "./pages/Threats";
 import Tips from "./pages/Tips";
 import Dashboard from "./pages/Dashboard";
-import AdminLogin from "./pages/AdminLogin";
 import Login from "./pages/Login";
 import Privacy from "./pages/Privacy";
 import ConnectionChecker from "./pages/Connectionchecker";
@@ -112,7 +111,6 @@ function App() {
             <Route path="/privacy" element={<Privacy />} />
             <Route path="/admin/login" element={<AdminLogin />} />
             <Route path="/admin/dashboard" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
             <Route path="/scam-checker" element={<ScamChecker />} />
             <Route path="/password-checker" element={<PasswordChecker />} />
             <Route path="/connection-checker" element={<ConnectionChecker />} />
